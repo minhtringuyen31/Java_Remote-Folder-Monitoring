@@ -1,38 +1,32 @@
 package Client;
 
 import java.io.*;
-import java.util.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
+import javax.swing.border.CompoundBorder;
 
+import java.util.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.net.*;
-import java.nio.file.*;
-import java.text.SimpleDateFormat;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.Paths;
 
 public class Client {
-
     private String host;
     private int port;
-    private String clientName;
-    private Socket sck;
+    private static String deviceClientName;
+    private Socket s;
     private DataInputStream dis;
     private DataOutputStream dos;
     private JPanel cards;
-    final static String CONNECTPANEL = "ConnectPanel";
-    final static String CHATPANEL = "ChatPanel";
-    private static Boolean isConnecting = false;
+    private static Boolean isConnection = false;
 
     private JTree treeDirectory;
-    private FileMonitor monitor = null;
+    private FolderMonitor watcher = null;
     private Thread watcherThread = null;
     private static String watcherMessage = "";
-
-    private static JTextArea txaArea = new JTextArea(10, 30);
-    private static JTextField txfChatBox = new JTextField(30);
-    private static JButton btnDisconnect = new JButton("DISCONNECT");
-    private static JButton btnSend = new JButton("SEND");
 
     public void specifyConnectInfo(String host, int port) {
         this.host = host;
@@ -40,162 +34,64 @@ public class Client {
     }
 
     public void specifyName(String name) {
-        this.clientName = name;
+        this.deviceClientName = name;
     }
 
-    public void Connect() throws IOException {
-        if (this.sck != null) {
-            this.sck.close();
-        }
-        this.sck = new Socket(this.host, this.port);
-        JOptionPane.showMessageDialog(null, "Successfully connect to server!", "NOTIFICATION",
-                JOptionPane.INFORMATION_MESSAGE);
-        this.dis = new DataInputStream(this.sck.getInputStream());
-        this.dos = new DataOutputStream(this.sck.getOutputStream());
+    private static String clientTitle = "CONNECT TO SERVER";
+    private static JLabel connectLabel;
+    private static JPanel mainScreen;
+    private static JPanel connectScreen;
+    private static JPanel logPanel;
+    private static JLabel nameLabel;
+    private static JLabel ipLabel;
+    private static JLabel portLabel;
+    private static JTextField nameTextField;
+    private static JTextField ipTextField;
+    private static JTextField portTextField;
+    private static JButton connectButton;
 
-        // Notification
-        txfChatBox.setEditable(false);
-        btnDisconnect.setEnabled(false);
-        btnSend.setEnabled(false);
-        txaArea.setText("Try to connecting to server...\n");
+    private static JLabel deviceClientLabel;
+    private static JPanel clientTitlePaneL;
+    private static JPanel tablePanel;
+    private static JPanel botPane;
+    private static JLabel clientTitleLabel;
+    private static JScrollPane tableScrollPanel;
+    private static JTextArea messageContent = new JTextArea(10, 30);
 
-        isConnecting = true;
-        CardLayout cl = (CardLayout) (cards.getLayout());
-        cl.show(cards, CHATPANEL);
-
-        // Write clientName to server(ClientHandler)
-        if (this.clientName.equals("")) {
-            this.clientName = sck.getLocalAddress().getHostAddress();
-        }
-        this.dos.writeUTF(this.clientName);
-
-        // Send current connection time
-        this.dos.writeUTF("INFO");
-        SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-        Date date = new Date();
-        this.dos.writeUTF(this.clientName + " has connected to server at: " + formatter.format(date));
-
-        // Create a new thread to sending directory tree requests
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    sendDirectoryTree();
-                    // Notification after sending directory tree
-                    txaArea.setText(txaArea.getText() + "Connected!\n");
-                    txfChatBox.setEditable(true);
-                    btnDisconnect.setEnabled(true);
-                    btnSend.setEnabled(true);
-                } catch (IOException exc) {
-                    //
-                }
-            }
-        }).start();
-
-        while (isConnecting) {
-            System.out.println("I'm here to receive your command");
-            String receivedString = this.dis.readUTF();
-            System.out.println("I'm here to execute your command");
-            if (receivedString.equals("DISCONNECT")) {
-                // Close connection
-                isConnecting = false;
-                txaArea.setText(null);
-                // Change layout
-                cl.show(cards, CONNECTPANEL);
-                break;
-            } else if (receivedString.equals("CHAT")) {
-                receivedString = this.dis.readUTF();
-                txaArea.setText(txaArea.getText() +
-                        "Server: " + receivedString + "\n");
-            } else if (receivedString.equals("WATCHING")) {
-                // Current watching dir
-                receivedString = this.dis.readUTF();
-
-                // If the watcherThread is already running, then interrupt
-                // the previous watcherThread
-                if (watcherThread != null) {
-                    monitor = null;
-                    watcherThread.interrupt();
-                    watcherThread = null;
-                    System.out.println("I'm interrupting the previous watcher");
-                }
-                // Running a new thread to see the changes in the directory
-                try {
-                    monitor = new FileMonitor(Paths.get(receivedString));
-                    watcherThread = new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            System.out.println("I'm here to monitoring");
-                            while (isConnecting) {
-                                try {
-
-                                    // Don't know why when add this line,
-                                    // the block of codes below is working,
-                                    // it just printing the message to console screen :(
-                                    System.out.println(monitor.getMonitorNotify());
-
-                                    if (watcherMessage.compareTo(monitor.getMonitorNotify()) != 0) {
-                                        watcherMessage = monitor.getMonitorNotify();
-                                        dos.writeUTF("WATCHING");
-                                        dos.writeUTF(watcherMessage);
-                                    }
-                                } catch (IOException exc) {
-                                    //
-                                }
-                            }
-                        }
-                    });
-                    watcherThread.start();
-                } catch (AccessDeniedException exc) {
-                    String msg = String.format("AccessDeniedException: Try monitoring another directory from %s!",
-                            this.clientName);
-                    dos.writeUTF("INFO");
-                    dos.writeUTF(msg);
-                }
-            }
-        }
-    }
-
-    public void sendDirectoryTree() throws IOException {
-        this.treeDirectory = new ClientDirectory().getTree();
-        this.dos.writeUTF("INFO");
-        this.dos.writeUTF(this.clientName + " is sending directory tree...");
-
-        this.dos.writeUTF("SEND");
-        ObjectOutputStream oos = new ObjectOutputStream(sck.getOutputStream());
-        oos.writeObject(this.treeDirectory);
-
-        this.dos.writeUTF("INFO");
-        this.dos.writeUTF(this.clientName + " has sent directory tree!");
-    }
+    private static JButton disconnectButton = new JButton("DISCONNECT");
+    final static String CONNECTPANEL = "CONNECTPANEL";
+    final static String MAINPANEL = "MAINPANEL";
 
     public void addComponentToPane(Container pane) {
 
-        JPanel chatCard = new JPanel(new BorderLayout());
-        JPanel connectCard = new JPanel(new BorderLayout());
+        mainScreen = new JPanel(new BorderLayout());
+        connectScreen = new JPanel(new BorderLayout());
 
-        // ConnectPanel
+        // CONNECTPANEL
+        connectLabel = new JLabel(clientTitle);
+        connectLabel.setHorizontalAlignment(JLabel.CENTER);
+        connectLabel.setFont(new Font("Serif", Font.BOLD, 30));
+        connectScreen.add(connectLabel, BorderLayout.NORTH);
 
         GridLayout gridLayout = new GridLayout(3, 2);
         gridLayout.setHgap(10);
         gridLayout.setVgap(10);
+        // Start logPanel
+        logPanel = new JPanel(gridLayout);
+        logPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        nameLabel = new JLabel("Client Name");
+        ipLabel = new JLabel("IP");
+        portLabel = new JLabel("Port");
+        nameTextField = new JTextField();
+        ipTextField = new JTextField();
+        portTextField = new JTextField();
+        connectButton = new JButton("Connect");
 
-        JPanel infoPane = new JPanel(gridLayout);
-        infoPane.setBorder(new EmptyBorder(10, 10, 10, 10));
-        JLabel lbName = new JLabel("Name");
-        JLabel lbIP = new JLabel("IP");
-        JLabel lbPort = new JLabel("Port");
-        JTextField txfName = new JTextField();
-        JTextField txfIP = new JTextField();
-        JTextField txfPort = new JTextField();
-
-        JButton btnSubmit = new JButton("Connect");
-
-        btnSubmit.addActionListener(new ActionListener() {
+        connectButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
-                specifyName(txfName.getText());
-                specifyConnectInfo(txfIP.getText(), Integer.parseInt(txfPort.getText()));
+                specifyName(nameTextField.getText());
+                specifyConnectInfo(ipTextField.getText(), Integer.parseInt(portTextField.getText()));
                 Thread t = new Thread() {
                     @Override
                     public void run() {
@@ -212,63 +108,47 @@ public class Client {
             }
         });
 
-        infoPane.add(lbName);
-        infoPane.add(txfName);
-        infoPane.add(lbIP);
-        infoPane.add(txfIP);
-        infoPane.add(lbPort);
-        infoPane.add(txfPort);
+        logPanel.add(nameLabel);
+        logPanel.add(nameTextField);
+        logPanel.add(ipLabel);
+        logPanel.add(ipTextField);
+        logPanel.add(portLabel);
+        logPanel.add(portTextField);
 
-        connectCard.add(infoPane, BorderLayout.NORTH);
-        connectCard.add(btnSubmit, BorderLayout.SOUTH);
+        connectScreen.add(logPanel, BorderLayout.CENTER);
+        connectScreen.add(connectButton, BorderLayout.SOUTH);
 
-        // ChatPanel
-        JPanel titlePane = new JPanel();
-        JPanel logPane = new JPanel();
-        JPanel botPane = new JPanel(new BorderLayout());
+        // main screen
+        clientTitlePaneL = new JPanel();
+        botPane = new JPanel(new BorderLayout());
+        // start title panel
+        clientTitleLabel = new JLabel(clientTitle);
+        clientTitleLabel.setHorizontalAlignment(JLabel.CENTER);
+        clientTitleLabel.setFont(new Font("Serif", Font.BOLD, 30));
+        pane.add(clientTitleLabel, BorderLayout.NORTH);
+        // end title panel
 
-        JLabel lbTitle = new JLabel("Chat");
-        lbTitle.setHorizontalAlignment(JLabel.CENTER);
+        // start table panel
+        deviceClientLabel = new JLabel(deviceClientName);
+        messageContent = new JTextArea(5, 50);
+        tableScrollPanel = new JScrollPane(messageContent);
+        // messageContent.setPreferredSize(new Dimension(800, 500));
+        // messageContent.setMaximumSize(messageContent.getPreferredSize());
+        messageContent.setEditable(false);
 
-        JScrollPane scpScroller = new JScrollPane(txaArea);
-        txaArea.setEditable(false);
-        // txaArea.setPreferredSize(new Dimension(200,400));
+        tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBorder(new EmptyBorder(0, 20, 0, 20));
+        tablePanel.setBorder(new CompoundBorder(new TitledBorder("Message Content"), new EmptyBorder(5, 5, 5, 5)));
+        tablePanel.add(tableScrollPanel, BorderLayout.CENTER);
+        // end table panel
 
-        btnSend.addActionListener(new ActionListener() {
+        disconnectButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
                 try {
-                    // Send command
-                    dos.writeUTF("CHAT");
-                    // Get message from chatbox and send it to the server
-                    String msg = txfChatBox.getText();
-                    dos.writeUTF(msg);
-                    // Update text area
-                    txaArea.setText(txaArea.getText() + clientName + ": " + msg + "\n");
-                    txfChatBox.setText("");
-                } catch (IOException exc) {
-                    exc.printStackTrace();
-                }
-            }
-        });
-
-        txfChatBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                btnSend.doClick();
-            }
-        });
-
-        btnDisconnect.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                try {
-                    // Send DISCONNECT command
                     dos.writeUTF("DISCONNECT");
-                    // Close connection
-                    isConnecting = false;
-                    txaArea.setText(null);
-                    // Change layout
+                    isConnection = false;
+                    messageContent.setText(null);
                     CardLayout cl = (CardLayout) (cards.getLayout());
                     cl.show(cards, CONNECTPANEL);
                 } catch (IOException exc) {
@@ -277,41 +157,40 @@ public class Client {
             }
         });
 
-        titlePane.add(lbTitle);
-        logPane.add(scpScroller);
-        botPane.add(txfChatBox, BorderLayout.NORTH);
-        botPane.add(btnSend, BorderLayout.EAST);
-        botPane.add(btnDisconnect, BorderLayout.CENTER);
+        clientTitlePaneL.add(clientTitleLabel);
+        tablePanel.add(deviceClientLabel);
+        tablePanel.add(tableScrollPanel);
 
-        chatCard.add(titlePane, BorderLayout.NORTH);
-        chatCard.add(logPane, BorderLayout.CENTER);
-        chatCard.add(botPane, BorderLayout.SOUTH);
+        botPane.add(disconnectButton, BorderLayout.CENTER);
 
-        // Config CardLayout
+        mainScreen.add(clientTitlePaneL, BorderLayout.NORTH);
+        mainScreen.add(tablePanel, BorderLayout.CENTER);
+        mainScreen.add(botPane, BorderLayout.SOUTH);
+
         cards = new JPanel(new CardLayout());
-        cards.add(connectCard, CONNECTPANEL);
-        cards.add(chatCard, CHATPANEL);
+        cards.add(connectScreen, CONNECTPANEL);
+        cards.add(mainScreen, MAINPANEL);
 
         pane.add(cards);
     }
 
     private static void createAndShowGUI() {
-        JFrame frame = new JFrame("ClientChat");
+        JFrame frame = new JFrame("Client" + deviceClientName);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setResizable(false);
 
-        Client clientprog = new Client();
-        clientprog.addComponentToPane(frame.getContentPane());
+        Client client = new Client();
+        client.addComponentToPane(frame.getContentPane());
 
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent evt) {
                 // Do something
                 try {
-                    if (isConnecting) {
-                        clientprog.dos.writeUTF("DISCONNECT");
-                        isConnecting = false;
-                        clientprog.sck.close();
+                    if (isConnection) {
+                        client.dos.writeUTF("DISCONNECT");
+                        isConnection = false;
+                        client.s.close();
                     }
                 } catch (IOException exc) {
                     exc.printStackTrace();
@@ -321,6 +200,97 @@ public class Client {
 
         frame.pack();
         frame.setVisible(true);
+    }
+
+    public void Connect() throws IOException {
+        this.s = new Socket(this.host, this.port);
+        this.dis = new DataInputStream(this.s.getInputStream());
+        this.dos = new DataOutputStream(this.s.getOutputStream());
+        disconnectButton.setEnabled(false);
+        messageContent.setText(this.deviceClientName + ": Connecting to server...\n");
+
+        isConnection = true;
+        CardLayout cl = (CardLayout) (cards.getLayout());
+        cl.show(cards, MAINPANEL);
+
+        if (this.deviceClientName.equals("")) {
+            this.deviceClientName = s.getLocalAddress().getHostAddress();
+        }
+        this.dos.writeUTF(this.deviceClientName);
+
+        // Create a new thread to sending directory tree requests
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    sendDirectoryTree();
+                    messageContent.setText(messageContent.getText() + "Connected to server!!!\n");
+                    disconnectButton.setEnabled(true);
+                } catch (IOException exc) {
+                    // TODO: handle exception
+                }
+            }
+        }).start();
+
+        while (isConnection) {
+            String receivedString = this.dis.readUTF();
+            System.out.println(receivedString);
+            if (receivedString.equals("DISCONNECT")) {
+                isConnection = false;
+                messageContent.setText(null);
+                cl.show(cards, CONNECTPANEL);
+                break;
+            } else if (receivedString.equals("WATCHING")) {
+                // Current watching dir
+                receivedString = this.dis.readUTF();
+
+                if (watcherThread != null) {
+                    watcher = null;
+                    watcherThread.interrupt();
+                    watcherThread = null;
+                }
+                try {
+                    watcher = new FolderMonitor(Paths.get(receivedString));
+                    watcherThread = new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            System.out.println("Monitoring");
+                            System.out.println("isConnection: " + isConnection);
+                            while (isConnection) {
+                                try {
+                                    System.out.println("watcher" + watcher.getWatcherMessage());
+                                    if (watcherMessage.compareTo(watcher.getWatcherMessage()) != 0) {
+                                        watcherMessage = watcher.getWatcherMessage();
+                                        dos.writeUTF("WATCHING");
+                                        System.out.println(watcherMessage);
+                                        dos.writeUTF(watcherMessage);
+                                        messageContent.setText(messageContent.getText() + watcherMessage + "\n");
+                                    }
+                                } catch (IOException exc) {
+                                    // TODO: handle exception
+                                }
+
+                            }
+                        }
+                    });
+                    watcherThread.start();
+                } catch (AccessDeniedException exc) {
+                    String msg = String.format("AccessDeniedException: Try monitoring another directory from %s!",
+                            this.deviceClientName);
+                    dos.writeUTF("INFO");
+                    dos.writeUTF(msg);
+                }
+            }
+        }
+    }
+
+    public void sendDirectoryTree() throws IOException {
+        this.treeDirectory = new Directory().getTree();
+        this.dos.writeUTF("SEND");
+        ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
+        oos.writeObject(this.treeDirectory);
+        this.dos.writeUTF("INFO");
+        this.dos.writeUTF(this.deviceClientName + ": Connected to server.");
     }
 
     public static void main(String[] args) {

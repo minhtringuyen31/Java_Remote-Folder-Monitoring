@@ -1,21 +1,21 @@
 package Client;
 
-import java.io.*;
-import javax.swing.*;
+import java.io.File;
+
+import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 
-public class ClientDirectory {
-    private DefaultMutableTreeNode root;
+public class Directory {
+    private DefaultMutableTreeNode root; // File node
     private DefaultTreeModel treeModel;
     private JTree tree;
 
     public JTree getTree() {
-        File[] roots = java.io.File.listRoots();
+        File[] diskRoots = java.io.File.listRoots();
         root = new DefaultMutableTreeNode();
-        for (File fileSystemRoot : roots) {
+        for (File fileSystemRoot : diskRoots) {
             DefaultMutableTreeNode node = new DefaultMutableTreeNode(fileSystemRoot);
-
             File[] fileList = fileSystemRoot.listFiles();
             if (fileList != null) {
                 for (File f : fileList) {
@@ -30,13 +30,11 @@ public class ClientDirectory {
         treeModel = new DefaultTreeModel(root);
         tree = new JTree(treeModel);
         tree.setShowsRootHandles(true);
-
         return tree;
     }
 
     public class CreateChildNodes implements Runnable {
         private DefaultMutableTreeNode root;
-
         private File fileRoot;
 
         public CreateChildNodes(File fileRoot,
@@ -64,6 +62,5 @@ public class ClientDirectory {
                 }
             }
         }
-
     }
 }

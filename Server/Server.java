@@ -1,27 +1,23 @@
 package Server;
 
-import java.net.ServerSocket;
 import java.net.*;
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-import java.awt.*;
-import java.awt.event.*;
 import java.io.*;
 import java.util.*;
+import javax.swing.*;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
+import javax.swing.tree.DefaultMutableTreeNode;
+import java.awt.*;
+import java.awt.event.*;
 
 public class Server {
-    private ServerSocket s;
-    private static HashMap<String, ClientHandler> serverThread;
 
+    private ServerSocket ss;
+    private static HashMap<String, ServerThread> thread;
     private static DefaultListModel<String> listModel;
-    private static JList<String> list_client;
-    private static JScrollPane scpClients;
-    private static JTextArea txaLogs;
-    private static JTextField txfDirectory;
-    private JButton btn_start;
-    private JPanel bCards;
-    final static String HOMEPANEL = "HomePanel";
-    final static String MAINPANEL = "MainPanel";
+    private static JList<String> clientList;
+    final static int PORT = 3200;
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -31,195 +27,141 @@ public class Server {
         });
     }
 
+    private static JPanel screen;
+    private static JPanel mainPanel;
+    private static String appTitle = "REMOTE DIRECTORY MONITORING";
+    private static JScrollPane activeClientScrollPanel;
+    private static JTextArea messageContent;
+    private static JTextField chosenDir;
+    private static JLabel appTitleLabel;
+    private static JPanel tablePanel;
+    private static JScrollPane tableScrollPanel;
+    private static JPanel activeClientPanel;
+    private static JPanel dirPathPanel;
+    private static JLabel chooseDir;
+    private static JButton chooseDirButton;
+
     public void addComponentToPane(Container pane) {
+        mainPanel = new JPanel(new BorderLayout());
 
-        JPanel homeCard = new JPanel();
-        JPanel mainCard = new JPanel(new BorderLayout());
+        // start title panel
+        appTitleLabel = new JLabel(appTitle);
+        appTitleLabel.setHorizontalAlignment(JLabel.CENTER);
+        appTitleLabel.setFont(new Font("Serif", Font.BOLD, 30));
+        pane.add(appTitleLabel, BorderLayout.NORTH);
+        // end title panel
 
-        JPanel functionPane = new JPanel(new BorderLayout());
-        JPanel botPane = new JPanel();
-        JLabel lbBottomText = new JLabel("File Monitoring by 20127605");
-        lbBottomText.setHorizontalAlignment(JLabel.CENTER);
-        botPane.add(lbBottomText);
+        // start table panel
+        tableScrollPanel = new JScrollPane(messageContent);
+        messageContent.setEditable(false);
+        messageContent.setLineWrap(true);
+        messageContent.setWrapStyleWord(true);
+        tableScrollPanel.setPreferredSize(new Dimension(800, 500));
+        tableScrollPanel.setMaximumSize(activeClientScrollPanel.getPreferredSize());
+        tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBorder(new EmptyBorder(0, 20, 0, 20));
+        tablePanel.setBorder(new CompoundBorder(new TitledBorder("Message Content"), new EmptyBorder(5, 5, 5, 5)));
+        tablePanel.add(tableScrollPanel, BorderLayout.CENTER);
+        // end table panel
 
-        JLabel lbTitle = new JLabel("SERVER CONTROL PANEL");
-        lbTitle.setHorizontalAlignment(JLabel.CENTER);
-        lbTitle.setFont(new Font("MV Boli", Font.PLAIN, 35));
-        lbTitle.setHorizontalAlignment(JLabel.CENTER);
+        // start active client panel
+        activeClientScrollPanel.setPreferredSize(new Dimension(200, 500));
+        activeClientScrollPanel.setMaximumSize(activeClientScrollPanel.getPreferredSize());
+        activeClientPanel = new JPanel(new BorderLayout());
+        activeClientPanel.setBorder(new CompoundBorder(new TitledBorder("Active Client"), new EmptyBorder(5, 5, 5, 5)));
+        activeClientPanel.add(activeClientScrollPanel, BorderLayout.CENTER);
+        // end active client panel
 
-        JPanel logsPane = new JPanel(new BorderLayout());
-        logsPane.setBorder(new EmptyBorder(0, 10, 0, 10));
+        // start choose directory panel
+        dirPathPanel = new JPanel();
+        dirPathPanel = new JPanel();
+        dirPathPanel.setBackground(Color.WHITE);
+        chooseDir = new JLabel("Choose Directory:");
+        chooseDirButton = new JButton("Choose");
+        chosenDir.setEditable(false);
+        // start choose directory panel
 
-        JScrollPane scpLogs = new JScrollPane(txaLogs);
-        txaLogs.setEditable(false);
-        txaLogs.setLineWrap(true);
-        txaLogs.setWrapStyleWord(true);
-
-        JTextField txfChatBox = new JTextField(20);
-
-        scpClients.setPreferredSize(new Dimension(150, 400));
-        scpClients.setMaximumSize(scpClients.getPreferredSize());
-
-        homeCard.add(btn_start, BorderLayout.CENTER);
-
-        JLabel lbLogsTitle = new JLabel("LOGS");
-        lbLogsTitle.setHorizontalAlignment(JLabel.CENTER);
-
-        logsPane.add(lbLogsTitle, BorderLayout.NORTH);
-        logsPane.add(scpLogs, BorderLayout.CENTER);
-        JPanel chatPane = new JPanel();
-        JButton btnSend = new JButton("SEND");
-        btnSend.addActionListener(new ActionListener() {
+        chooseDirButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
-                try {
-                    // Get selected client username
-                    String currentSelectedClient = list_client.getSelectedValue();
-                    if (currentSelectedClient == null) {
-                        String msg = "Please select a client to chat from the list";
-                        JOptionPane.showMessageDialog(btnSend, msg, "ERROR", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    }
-                    ClientHandler clh = serverThread.get(currentSelectedClient);
-                    if (clh == null) {
-                        // No client
-                        return;
-                    }
-                    DataOutputStream dos = clh.getDOS();
-                    dos.writeUTF("CHAT");
-
-                    String msg = txfChatBox.getText();
-                    dos.writeUTF(msg);
-                    dos.flush();
-                    txfChatBox.setText("");
-
-                    // Update text area
-                    txaLogs.setText(txaLogs.getText() + "Server send to " + clh.getUsername() + ": " + msg + "\n");
-
-                } catch (IOException exc) {
-                    exc.getStackTrace();
-                }
-            }
-        });
-
-        chatPane.add(txfChatBox);
-        chatPane.add(btnSend);
-        logsPane.add(chatPane, BorderLayout.SOUTH);
-
-        JPanel upperPane = new JPanel();
-
-        JPanel browsePane = new JPanel();
-        browsePane.setBackground(Color.WHITE);
-
-        JLabel lbMonitoring = new JLabel("Monitoring directory:");
-        JButton btnBrowse = new JButton("Choose dir");
-
-        txfDirectory.setEditable(false);
-
-        btnBrowse.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                JFrame browseFrame = new JFrame("ServerControlPanel");
+                JFrame browseFrame = new JFrame("Directory Tree");
                 browseFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
                 browseFrame.setResizable(false);
 
-                // JPanel browsePanel = new JPanel(new BorderLayout());
-                JLabel lbBrowseTitle = new JLabel("CHOOSE A DIRECTORY FOR MONITORING");
-                lbBrowseTitle.setHorizontalAlignment(JLabel.CENTER);
-
-                String currentSelectedClient = list_client.getSelectedValue();
+                String currentSelectedClient = clientList.getSelectedValue();
                 if (currentSelectedClient == null) {
                     String msg = "Please select a client to monitor from the list";
-                    JOptionPane.showMessageDialog(btnBrowse, msg, "ERROR", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(chooseDirButton, msg, "ERROR", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
-                ClientHandler clh = serverThread.get(currentSelectedClient);
-                JTree cdTree = clh.getDirectoryTree();
+                ServerThread clientHandler = thread.get(currentSelectedClient);
+                JTree cdTree = clientHandler.getDirectoryTree();
 
-                JScrollPane scpDirectory = new JScrollPane();
-                scpDirectory = new JScrollPane(cdTree);
-                scpDirectory.setPreferredSize(new Dimension(400, 300));
-                scpDirectory.setMaximumSize(scpDirectory.getPreferredSize());
+                JScrollPane dirScrollPane = new JScrollPane();
+                dirScrollPane = new JScrollPane(cdTree);
+                dirScrollPane.setPreferredSize(new Dimension(500, 500));
+                dirScrollPane.setMaximumSize(dirScrollPane.getPreferredSize());
 
-                JButton btnChoose = new JButton("CHOOSE");
-                btnChoose.addActionListener(new ActionListener() {
+                JButton chooseButton = new JButton("CHOOSE");
+                chooseButton.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent evt) {
                         DefaultMutableTreeNode selectedElement = (DefaultMutableTreeNode) cdTree.getSelectionPath()
                                 .getLastPathComponent();
                         String selectedDir = ((File) selectedElement.getUserObject()).getAbsolutePath();
-                        txfDirectory.setText(selectedDir);
-                        txaLogs.setText(txaLogs.getText() + "CHANGE_DIRECTORY: Monitoring " + selectedDir
-                                + " from \"" + clh.getUsername() + "\"\n");
+                        chosenDir.setText(selectedDir);
+                        messageContent.setText(messageContent.getText() + clientHandler.getUsername() + ": "
+                                + "Selected folder to monitoring | " + selectedDir + "\"\n");
                         try {
-                            DataOutputStream clhDOS = clh.getDOS();
-                            clhDOS.writeUTF("WATCHING");
-                            clhDOS.writeUTF(selectedDir);
+                            DataOutputStream clientHandlerDOS = clientHandler.getDataOutputStream();
+                            clientHandlerDOS.writeUTF("WATCHING");
+                            clientHandlerDOS.writeUTF(selectedDir);
                         } catch (IOException exc) {
+                            // TODO: handle exception
                             exc.printStackTrace();
                         }
+                        browseFrame.dispatchEvent(new WindowEvent(browseFrame,
+                                WindowEvent.WINDOW_CLOSING));
                     }
                 });
 
-                browseFrame.add(lbBrowseTitle, BorderLayout.NORTH);
-                browseFrame.add(scpDirectory, BorderLayout.CENTER);
-                browseFrame.add(btnChoose, BorderLayout.SOUTH);
+                browseFrame.add(dirScrollPane, BorderLayout.CENTER);
+                browseFrame.add(chooseButton, BorderLayout.SOUTH);
 
                 browseFrame.pack();
                 browseFrame.setVisible(true);
             }
         });
 
-        upperPane.add(lbMonitoring);
-        browsePane.add(btnBrowse);
-        browsePane.add(txfDirectory);
-        upperPane.add(browsePane);
+        dirPathPanel.add(chooseDir);
+        dirPathPanel.add(chosenDir);
+        dirPathPanel.add(chooseDirButton);
 
-        JPanel listClientPane = new JPanel(new BorderLayout());
-        JLabel lbListTitle = new JLabel("AVAILABLE CLIENT(S)");
-        lbListTitle.setHorizontalAlignment(JLabel.CENTER);
-        listClientPane.add(lbListTitle, BorderLayout.NORTH);
-        listClientPane.add(scpClients, BorderLayout.CENTER);
-        functionPane.add(listClientPane, BorderLayout.WEST);
-        functionPane.add(logsPane, BorderLayout.CENTER);
-        functionPane.add(upperPane, BorderLayout.NORTH);
+        mainPanel.add(activeClientPanel, BorderLayout.EAST);
+        mainPanel.add(tablePanel, BorderLayout.CENTER);
+        mainPanel.add(dirPathPanel, BorderLayout.SOUTH);
 
-        mainCard.add(functionPane, BorderLayout.CENTER);
+        screen = new JPanel(new CardLayout());
+        screen.add(mainPanel);
 
-        // Initialize CardLayout
-        bCards = new JPanel(new CardLayout());
-        bCards.add(homeCard, HOMEPANEL);
-        bCards.add(mainCard, MAINPANEL);
-
-        pane.add(lbTitle, BorderLayout.NORTH);
-        pane.add(bCards, BorderLayout.CENTER);
-        pane.add(botPane, BorderLayout.SOUTH);
-
-        txfChatBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                btnSend.doClick();
-            }
-        });
-
+        pane.add(screen, BorderLayout.CENTER);
     }
 
     private static void createAndShowGUI() {
-        JFrame frame = new JFrame("ServerControlPanel");
+        JFrame.setDefaultLookAndFeelDecorated(true);
+        JFrame frame = new JFrame("Server-Port:3200");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setResizable(false);
 
-        ServerProgram serverprog = new ServerProgram();
-        serverprog.addComponentToPane(frame.getContentPane());
+        Server server = new Server();
+        server.addComponentToPane(frame.getContentPane());
 
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent evt) {
-                // Send server disconnect command
                 try {
-                    for (String username : serverThread.keySet()) {
-                        ClientHandler clh = serverThread.get(username);
-                        clh.getDOS().writeUTF("DISCONNECT");
+                    for (String deviceClientName : thread.keySet()) {
+                        ServerThread clientHandler = thread.get(deviceClientName);
+                        clientHandler.getDataOutputStream().writeUTF("DISCONNECT");
                     }
                 } catch (IOException exc) {
                     exc.printStackTrace();
@@ -228,50 +170,163 @@ public class Server {
         });
 
         frame.pack();
+        frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
-        CardLayout cl = (CardLayout) (serverprog.bCards.getLayout());
-        cl.show(serverprog.bCards, HOMEPANEL);
+        // Start Server
+        try {
+            server.ss = new ServerSocket(PORT);
 
-        serverprog.btn_start.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                try {
-                    serverprog.ssck = new ServerSocket(3000);
+            new Thread() {
+                public void run() {
+                    while (true) {
+                        try {
+                            // Wating for client to connect
+                            System.out.println("Waiting for a Client");
+                            messageContent.setText("Server Started\n");
+                            Socket s = server.ss.accept();
 
-                    // running new thread to handle connecting socket
-                    new Thread() {
-                        public void run() {
-                            while (true) {
-                                try {
-                                    // Wating for client to connect
-                                    Socket sck = serverprog.ssck.accept();
+                            ServerThread clientHandler = server.new ServerThread(s);
 
-                                    ClientHandler clh = serverprog.new ClientHandler(sck);
+                            String clientUsername = clientHandler.getUsername();
 
-                                    String clientUsername = clh.getUsername();
+                            thread.put(clientUsername, clientHandler);
+                            listModel.addElement(clientUsername);
+                            clientHandler.start();
 
-                                    // Suppose client usernames are unique
-                                    serverThread.put(clientUsername, clh);
-                                    listModel.addElement(clientUsername);
-                                    clh.start();
-
-                                } catch (IOException exc) {
-                                    exc.printStackTrace();
-                                }
-                            }
+                        } catch (IOException exc) {
+                            exc.printStackTrace();
                         }
-                    }.start();
-
-                    CardLayout cl = (CardLayout) (serverprog.bCards.getLayout());
-                    cl.show(serverprog.bCards, MAINPANEL);
-
-                } catch (IOException exc) {
-                    exc.printStackTrace();
+                    }
                 }
-            }
-        });
+            }.start();
+
+        } catch (IOException exc) {
+            exc.printStackTrace();
+        }
     }
 
-    public ServerProgram() {
+    public Server() {
+        thread = new HashMap<String, ServerThread>();
+        listModel = new DefaultListModel<String>();
+        clientList = new JList<String>(listModel);
+        activeClientScrollPanel = new JScrollPane(clientList);
+        messageContent = new JTextArea(10, 30);
+        chosenDir = new JTextField(20);
+    }
+
+    public class ServerThread extends Thread {
+        private Socket s;
+        private DataInputStream dis;
+        private DataOutputStream dos;
+        private String deviceClientName;
+
+        private JTree directoryTree;
+        private Boolean isConnection;
+
+        public ServerThread(Socket s) throws IOException {
+            this.setSocket(s);
+            this.setUsername(this.dis.readUTF());
+            isConnection = true;
+        }
+
+        public void setSocket(Socket s) {
+            this.s = s;
+            try {
+                this.dis = new DataInputStream(s.getInputStream());
+                this.dos = new DataOutputStream(s.getOutputStream());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void closeSocket() {
+            if (this.s != null) {
+                try {
+                    isConnection = false;
+                    this.s.close();
+                    this.s = null;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        public Boolean getStatus() {
+            return isConnection;
+        }
+
+        public DataOutputStream getDataOutputStream() {
+            return this.dos;
+        }
+
+        public DataInputStream getDataInputStream() {
+            return this.dis;
+        }
+
+        public String getUsername() {
+            return this.deviceClientName;
+        }
+
+        public Boolean setUsername(String deviceClientName) {
+            if (!deviceClientName.equals("")) {
+                this.deviceClientName = deviceClientName;
+                return true;
+            }
+            return false;
+        }
+
+        public void receivedDirectoryTree() throws IOException, ClassNotFoundException {
+            ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
+            directoryTree = (JTree) ois.readObject();
+        }
+
+        public JTree getDirectoryTree() {
+            return directoryTree;
+        }
+
+        @Override
+        public void run() {
+            while (isConnection) {
+                try {
+                    String message = null;
+
+                    // read user request
+                    message = dis.readUTF();
+
+                    // Receive DISCONNECT message from client
+                    if (message.equals("DISCONNECT")) {
+                        this.closeSocket();
+                        thread.remove(this.getUsername());
+                        listModel.removeElement(this.getUsername());
+                        chosenDir.setText(null);
+                        messageContent.setText(messageContent.getText() + this.getUsername() + " : "
+                                + "Disconnected to server." + "\n");
+                        break;
+                    }
+
+                    // Receive directory tree
+                    else if (message.equals("SEND")) {
+                        receivedDirectoryTree();
+                    }
+                    // Receive changes from monitoring directory
+                    else if (message.equals("WATCHING")) {
+                        String receivedMessage = dis.readUTF();
+                        messageContent.setText(
+                                messageContent.getText() + this.getUsername() + " : " + receivedMessage + "\n");
+                    }
+                    // Receive other message from client
+                    else if (message.equals("INFO")) {
+                        String receivedMessage = dis.readUTF();
+                        messageContent.setText(messageContent.getText() + receivedMessage + "\n");
+                    }
+                } catch (IOException exc) {
+                    System.out.println(exc.getMessage());
+                } catch (ClassNotFoundException exc) {
+                    System.out.println(exc.getMessage());
+                }
+            }
+        }
+
+    }
 }
