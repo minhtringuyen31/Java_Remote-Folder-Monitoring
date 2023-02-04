@@ -51,6 +51,14 @@ public class Server {
         pane.add(appTitleLabel, BorderLayout.NORTH);
         // end title panel
 
+        // start active client panel
+        activeClientScrollPanel.setPreferredSize(new Dimension(200, 500));
+        activeClientScrollPanel.setMaximumSize(activeClientScrollPanel.getPreferredSize());
+        activeClientPanel = new JPanel(new BorderLayout());
+        activeClientPanel.setBorder(new CompoundBorder(new TitledBorder("Active Client"), new EmptyBorder(5, 5, 5, 5)));
+        activeClientPanel.add(activeClientScrollPanel, BorderLayout.CENTER);
+        // end active client panel
+
         // start table panel
         tableScrollPanel = new JScrollPane(messageContent);
         messageContent.setEditable(false);
@@ -63,14 +71,6 @@ public class Server {
         tablePanel.setBorder(new CompoundBorder(new TitledBorder("Message Content"), new EmptyBorder(5, 5, 5, 5)));
         tablePanel.add(tableScrollPanel, BorderLayout.CENTER);
         // end table panel
-
-        // start active client panel
-        activeClientScrollPanel.setPreferredSize(new Dimension(200, 500));
-        activeClientScrollPanel.setMaximumSize(activeClientScrollPanel.getPreferredSize());
-        activeClientPanel = new JPanel(new BorderLayout());
-        activeClientPanel.setBorder(new CompoundBorder(new TitledBorder("Active Client"), new EmptyBorder(5, 5, 5, 5)));
-        activeClientPanel.add(activeClientScrollPanel, BorderLayout.CENTER);
-        // end active client panel
 
         // start choose directory panel
         dirPathPanel = new JPanel();
